@@ -73,7 +73,7 @@ async def execute_task(task_request: TaskRequest):
         
         # Prepare the task execution
         result = subprocess.run(
-            ["python3", "-c", f"print('{task_request.task}')"],
+            ["python3", "-c", task_request.task],
             capture_output=True,
             text=True,
             timeout=task_request.timeout
