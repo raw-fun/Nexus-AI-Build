@@ -10,14 +10,20 @@ import os
 import asyncio
 import aiohttp
 import streamlit as st
+import logging
 from datetime import datetime
 import google.generativeai as genai
 from supabase import create_client, Client
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configuration from environment variables
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+NADG_AUTH_TOKEN = os.environ.get('NADG_AUTH_TOKEN', '')
 
 # Initialize clients
 if GEMINI_API_KEY:
@@ -38,41 +44,150 @@ def get_active_workers():
         return []
 
 
-async def send_task_to_worker(session, worker_url, task_data):
-    """Send a task to a worker node asynchronously"""
+def mark_worker_offline(worker_id):
+    """Mark a worker as offline in Supabase"""
     try:
-        async with session.post(f"{worker_url}/execute", json=task_data, timeout=30) as response:
-            result = await response.json()
-            return {'worker': worker_url, 'status': 'success', 'result': result}
+        supabase.table('worker_nodes').update({
+            'status': 'offline'
+        }).eq('id', worker_id).execute()
+        logger.info(f"Marked worker {worker_id} as offline")
     except Exception as e:
-        return {'worker': worker_url, 'status': 'error', 'error': str(e)}
+        logger.error(f"Error marking worker {worker_id} as offline: {e}")
+
+
+async def send_task_to_worker(session, worker_url, task_data, worker_id=None):
+    """
+    Send a task to a worker node asynchronously with authentication.
+    Includes X-NADG-AUTH header for secure communication.
+    """
+    headers = {}
+    if NADG_AUTH_TOKEN:
+        headers['X-NADG-AUTH'] = NADG_AUTH_TOKEN
+    
+    try:
+        async with session.post(
+            f"{worker_url}/execute",
+            json=task_data,
+            headers=headers,
+            timeout=30
+        ) as response:
+            result = await response.json()
+            return {
+                'worker': worker_url,
+                'worker_id': worker_id,
+                'status': 'success',
+                'result': result
+            }
+    except Exception as e:
+        logger.error(f"Error sending task to worker {worker_url}: {e}")
+        return {
+            'worker': worker_url,
+            'worker_id': worker_id,
+            'status': 'error',
+            'error': str(e)
+        }
+
+
+async def send_task_with_retry(session, task_data, task_index, initial_worker, all_workers_list, max_retries=3):
+    """
+    Send a task to a worker with retry logic and automatic re-assignment.
+    If a worker fails, marks it offline and tries the next available worker.
+    """
+    attempted_workers = set()
+    current_worker = initial_worker
+    
+    for attempt in range(max_retries):
+        if current_worker['id'] in attempted_workers:
+            # Already tried this worker, get a new one
+            active_workers = get_active_workers()
+            available_workers = [
+                w for w in active_workers
+                if w['id'] not in attempted_workers
+            ]
+            
+            if not available_workers:
+                logger.error(f"No more workers available for task {task_index}")
+                return {
+                    'worker': 'none',
+                    'worker_id': None,
+                    'status': 'error',
+                    'error': 'No available workers remaining',
+                    'task_index': task_index
+                }
+            
+            current_worker = available_workers[0]
+        
+        attempted_workers.add(current_worker['id'])
+        logger.info(f"Attempt {attempt + 1}/{max_retries}: Task {task_index} on worker {current_worker['id']}: {current_worker['vm_url']}")
+        
+        # Send task to worker
+        result = await send_task_to_worker(
+            session,
+            current_worker['vm_url'],
+            task_data,
+            current_worker['id']
+        )
+        
+        if result['status'] == 'success':
+            logger.info(f"Task {task_index} succeeded on worker {current_worker['id']}")
+            return result
+        else:
+            # Worker failed - mark as offline
+            logger.warning(f"Worker {current_worker['id']} failed: {result.get('error')}")
+            mark_worker_offline(current_worker['id'])
+            
+            # Continue to next iteration to try another worker
+    
+    return {
+        'worker': 'failed',
+        'worker_id': None,
+        'status': 'error',
+        'error': f'Task failed after {max_retries} retries',
+        'task_index': task_index
+    }
 
 
 async def distribute_tasks(tasks, workers):
-    """Distribute tasks to workers asynchronously"""
+    """
+    Distribute tasks to workers asynchronously with error recovery.
+    Automatically retries failed tasks on different workers.
+    """
     async with aiohttp.ClientSession() as session:
         task_promises = []
         for i, task in enumerate(tasks):
             worker = workers[i % len(workers)]
             task_data = {'task': task, 'task_id': i}
-            task_promises.append(send_task_to_worker(session, worker['vm_url'], task_data))
+            task_promises.append(
+                send_task_with_retry(session, task_data, i, worker, workers)
+            )
         
         results = await asyncio.gather(*task_promises)
         return results
 
 
 def split_task_with_gemini(user_command, num_workers):
-    """Use Gemini API to intelligently split a task into subtasks"""
+    """
+    Use Gemini API to intelligently split a task into subtasks.
+    Handles dynamic worker counts where some nodes might be busy or offline.
+    """
     prompt = f"""
 You are a task distribution expert. Given the following user command and {num_workers} available workers,
-split this into {num_workers} parallel subtasks that can be executed independently.
+split this into up to {num_workers} parallel subtasks that can be executed independently.
 
 User Command: {user_command}
 
-Please provide exactly {num_workers} subtasks as a numbered list. Each subtask should be:
+Important considerations:
+- Create subtasks that are independent and can run in parallel
+- If the command can be completed in fewer than {num_workers} subtasks, that's acceptable
+- Each subtask should be concise, clear, and executable on its own
+- Account for the fact that some workers might go offline during execution
+- Ensure each subtask contributes to completing the overall user command
+
+Please provide your subtasks as a numbered list. Each subtask should be:
 1. Independent and executable on its own
 2. Part of completing the overall user command
 3. Concise and clear
+4. Resilient to worker failures (no dependencies between subtasks)
 
 Format your response as a simple numbered list.
 """
@@ -120,6 +235,7 @@ def main():
         st.header("⚙️ Configuration")
         st.info(f"Gemini API: {'✅ Configured' if GEMINI_API_KEY else '❌ Not Configured'}")
         st.info(f"Supabase: {'✅ Connected' if SUPABASE_URL and SUPABASE_SERVICE_KEY else '❌ Not Connected'}")
+        st.info(f"Auth Token: {'✅ Enabled' if NADG_AUTH_TOKEN else '⚠️  Disabled (insecure)'}")
         
         if st.button("🔄 Refresh Workers"):
             st.rerun()

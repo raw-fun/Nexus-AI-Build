@@ -35,6 +35,12 @@ This guide walks you through setting up the complete NEXUS-AI Distributed Grid s
 - Create a new token with **write** access
 - Copy and save as HF_TOKEN secret
 
+#### NADG_AUTH_TOKEN
+- Generate a secure random token: `openssl rand -hex 64` (recommended: 128 characters minimum)
+- This token secures communication between master and workers
+- Add it as a secret with name NADG_AUTH_TOKEN
+- ⚠️ **Important**: Use the same token in both master and worker environments
+
 ### 2. Database Setup
 
 1. In your Supabase project, click **SQL Editor**
@@ -53,20 +59,28 @@ This guide walks you through setting up the complete NEXUS-AI Distributed Grid s
    - License: Your choice (MIT recommended)
    - SDK: **Docker**
    - Hardware: CPU (free tier)
-4. Once created, click **Files** > **Add file** > **Upload files**
-5. Upload these files from the `worker-node/` directory:
+4. Once created, go to **Settings** > **Variables and secrets**
+5. Add a new secret:
+   - Name: `NADG_AUTH_TOKEN`
+   - Value: Same token you added to GitHub secrets
+6. Click **Files** > **Add file** > **Upload files**
+7. Upload these files from the `worker-node/` directory:
    - `Dockerfile`
    - `main.py`
    - `requirements.txt`
-6. Commit the files
-7. Wait for the Space to build (check the logs)
-8. Once running, copy your Space URL (e.g., `https://username-nadg-worker-1.hf.space`)
+8. Commit the files
+9. Wait for the Space to build (check the logs)
+10. Once running, copy your Space URL (e.g., `https://username-nadg-worker-1.hf.space`)
 
 #### Option B: Deploy Locally for Testing
 
 ```bash
 cd worker-node
 pip install -r requirements.txt
+
+# Set the authentication token
+export NADG_AUTH_TOKEN="your-secret-token"
+
 python main.py
 ```
 
@@ -102,11 +116,13 @@ pip install -r requirements.txt
 export GEMINI_API_KEY="your-key"
 export SUPABASE_URL="your-url"
 export SUPABASE_SERVICE_KEY="your-key"
+export NADG_AUTH_TOKEN="your-secret-token"
 
 # Or on Windows
 set GEMINI_API_KEY=your-key
 set SUPABASE_URL=your-url
 set SUPABASE_SERVICE_KEY=your-key
+set NADG_AUTH_TOKEN=your-secret-token
 
 # Run the app
 streamlit run app.py

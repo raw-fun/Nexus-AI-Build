@@ -61,6 +61,7 @@ Go to **Settings > Secrets and Variables > Actions** and add:
 | `SUPABASE_URL` | Your Supabase project URL | Supabase Project Settings |
 | `SUPABASE_SERVICE_KEY` | Supabase service role key | Supabase Project API Settings |
 | `HF_TOKEN` | Hugging Face write token | [Hugging Face Settings](https://huggingface.co/settings/tokens) |
+| `NADG_AUTH_TOKEN` | Secure token for worker authentication | Generate using `openssl rand -hex 32` |
 
 ### Step 3: Set Up Supabase Database
 
@@ -179,13 +180,15 @@ and create data visualizations
 GEMINI_API_KEY=your_gemini_api_key
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your_service_role_key
+NADG_AUTH_TOKEN=your_secure_token
 ```
 
 ### Worker Node Environment Variables
 
 ```bash
-WORKER_ID=worker-1  # Optional: Identifier for this worker
-PORT=7860           # Default port for Hugging Face Spaces
+WORKER_ID=worker-1       # Optional: Identifier for this worker
+PORT=7860                # Default port for Hugging Face Spaces
+NADG_AUTH_TOKEN=your_secure_token  # Same token as master app
 ```
 
 ## 📊 Worker Management
@@ -239,9 +242,12 @@ curl -X POST http://localhost:7860/execute \
 
 - **Never commit secrets** to the repository
 - Use GitHub Secrets for all sensitive credentials
-- Worker nodes execute tasks in isolated subprocess environments
+- **Worker Authentication**: All worker POST endpoints require a valid `X-NADG-AUTH` header matching the `NADG_AUTH_TOKEN` environment variable
+- **Automatic Failover**: If a worker fails or becomes unreachable, tasks are automatically reassigned to healthy workers
+- **Worker Isolation**: Worker nodes execute tasks in isolated subprocess environments
 - Consider implementing additional sandboxing for production use
 - Regularly rotate API keys and tokens
+- Use strong, randomly generated tokens for `NADG_AUTH_TOKEN` (recommended: 128+ characters using `openssl rand -hex 64`)
 
 ## 📈 Monitoring
 

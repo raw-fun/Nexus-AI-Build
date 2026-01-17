@@ -6,7 +6,7 @@ Stack: FastAPI + Python subprocess execution
 ============================================================
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from pydantic import BaseModel
 import subprocess
 import os
@@ -17,11 +17,44 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load authentication token from environment
+NADG_AUTH_TOKEN = os.environ.get('NADG_AUTH_TOKEN', '')
+
+# Log authentication status once at startup
+if not NADG_AUTH_TOKEN:
+    logging.warning("NADG_AUTH_TOKEN not configured - authentication disabled (insecure)")
+
 app = FastAPI(
     title="NADG Worker Node",
     description="Worker node for NEXUS-AI Distributed Grid",
     version="1.0.0"
 )
+
+
+def verify_auth_token(x_nadg_auth: str = Header(None)):
+    """
+    FastAPI dependency to verify the X-NADG-AUTH header.
+    Returns 401 Unauthorized if the header is missing or invalid.
+    """
+    if not NADG_AUTH_TOKEN:
+        # If no token is configured, skip authentication (for backward compatibility)
+        return True
+    
+    if x_nadg_auth is None:
+        logger.error("Missing X-NADG-AUTH header")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing X-NADG-AUTH header"
+        )
+    
+    if x_nadg_auth != NADG_AUTH_TOKEN:
+        logger.error("Invalid X-NADG-AUTH token")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication token"
+        )
+    
+    return True
 
 
 class TaskRequest(BaseModel):
@@ -60,7 +93,7 @@ async def health_check():
 
 
 @app.post("/execute", response_model=TaskResponse)
-async def execute_task(task_request: TaskRequest):
+async def execute_task(task_request: TaskRequest, authenticated: bool = Depends(verify_auth_token)):
     """
     Execute a task received from the master orchestrator.
     The task is executed as a shell command in a controlled environment.
@@ -105,7 +138,7 @@ async def execute_task(task_request: TaskRequest):
 
 
 @app.post("/execute-python")
-async def execute_python_task(task_request: TaskRequest):
+async def execute_python_task(task_request: TaskRequest, authenticated: bool = Depends(verify_auth_token)):
     """
     Execute a Python task in a more controlled manner.
     This endpoint is specifically for Python code execution.

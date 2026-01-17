@@ -7,12 +7,19 @@ Tests all endpoints to verify worker functionality
 import requests
 import json
 import sys
+import os
 
-def test_worker(worker_url="http://localhost:7860"):
+def test_worker(worker_url="http://localhost:7860", auth_token=None):
     """Test all worker endpoints"""
     
     print(f"🧪 Testing NADG Worker at {worker_url}")
+    print(f"🔐 Auth Token: {'Enabled' if auth_token else 'Disabled'}")
     print("=" * 60)
+    
+    # Prepare headers
+    headers = {}
+    if auth_token:
+        headers['X-NADG-AUTH'] = auth_token
     
     # Test 1: Root endpoint
     print("\n1️⃣  Testing root endpoint (GET /)...")
@@ -63,11 +70,15 @@ def test_worker(worker_url="http://localhost:7860"):
         response = requests.post(
             f"{worker_url}/execute",
             json=task_data,
+            headers=headers,
             timeout=15
         )
         if response.status_code == 200:
             print("✅ Task execution successful")
             print(f"   Response: {response.json()}")
+        elif response.status_code == 401:
+            print("❌ Authentication failed - check X-NADG-AUTH header")
+            print(f"   Response: {response.text}")
         else:
             print(f"❌ Failed with status {response.status_code}")
             print(f"   Response: {response.text}")
@@ -85,6 +96,7 @@ def test_worker(worker_url="http://localhost:7860"):
         response = requests.post(
             f"{worker_url}/execute-python",
             json=python_task,
+            headers=headers,
             timeout=15
         )
         if response.status_code == 200:
@@ -94,6 +106,9 @@ def test_worker(worker_url="http://localhost:7860"):
             print(f"   Output: {result['output']}")
             if result.get('error'):
                 print(f"   Error: {result['error']}")
+        elif response.status_code == 401:
+            print("❌ Authentication failed - check X-NADG-AUTH header")
+            print(f"   Response: {response.text}")
         else:
             print(f"❌ Failed with status {response.status_code}")
             print(f"   Response: {response.text}")
@@ -104,7 +119,7 @@ def test_worker(worker_url="http://localhost:7860"):
     print("✅ Testing complete!")
     return True
 
-
 if __name__ == "__main__":
     worker_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:7860"
-    test_worker(worker_url)
+    auth_token = os.environ.get('NADG_AUTH_TOKEN', None)
+    test_worker(worker_url, auth_token)
