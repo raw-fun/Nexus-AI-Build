@@ -97,13 +97,13 @@ Format your response as a simple numbered list.
         return []
 
 
-def update_worker_task_count(worker_id):
+def update_worker_task_count(worker):
     """Increment the total_tasks counter for a worker"""
     try:
         supabase.table('worker_nodes').update({
-            'total_tasks': worker_id['total_tasks'] + 1,
+            'total_tasks': worker['total_tasks'] + 1,
             'last_ping': datetime.now().isoformat()
-        }).eq('id', worker_id['id']).execute()
+        }).eq('id', worker['id']).execute()
     except Exception as e:
         st.error(f"Error updating worker: {e}")
 
