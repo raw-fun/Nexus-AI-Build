@@ -36,7 +36,7 @@ This guide walks you through setting up the complete NEXUS-AI Distributed Grid s
 - Copy and save as HF_TOKEN secret
 
 #### NADG_AUTH_TOKEN
-- Generate a secure random token (e.g., using `openssl rand -hex 32`)
+- Generate a secure random token: `openssl rand -hex 64` (recommended: 128 characters minimum)
 - This token secures communication between master and workers
 - Add it as a secret with name NADG_AUTH_TOKEN
 - ⚠️ **Important**: Use the same token in both master and worker environments

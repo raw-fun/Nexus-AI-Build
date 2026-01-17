@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 # Load authentication token from environment
 NADG_AUTH_TOKEN = os.environ.get('NADG_AUTH_TOKEN', '')
 
+# Log authentication status once at startup
+if not NADG_AUTH_TOKEN:
+    logging.warning("NADG_AUTH_TOKEN not configured - authentication disabled (insecure)")
+
 app = FastAPI(
     title="NADG Worker Node",
     description="Worker node for NEXUS-AI Distributed Grid",
@@ -34,7 +38,6 @@ def verify_auth_token(x_nadg_auth: str = Header(None)):
     """
     if not NADG_AUTH_TOKEN:
         # If no token is configured, skip authentication (for backward compatibility)
-        logger.warning("NADG_AUTH_TOKEN not configured - authentication disabled")
         return True
     
     if x_nadg_auth is None:

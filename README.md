@@ -247,7 +247,7 @@ curl -X POST http://localhost:7860/execute \
 - **Worker Isolation**: Worker nodes execute tasks in isolated subprocess environments
 - Consider implementing additional sandboxing for production use
 - Regularly rotate API keys and tokens
-- Use strong, randomly generated tokens for `NADG_AUTH_TOKEN` (minimum 32 characters)
+- Use strong, randomly generated tokens for `NADG_AUTH_TOKEN` (recommended: 128+ characters using `openssl rand -hex 64`)
 
 ## 📈 Monitoring
 

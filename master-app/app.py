@@ -94,17 +94,31 @@ async def send_task_with_retry(session, task_data, task_index, initial_worker, a
     If a worker fails, marks it offline and tries the next available worker.
     """
     attempted_workers = set()
-    retry_count = 0
     current_worker = initial_worker
     
-    while retry_count < max_retries:
+    for attempt in range(max_retries):
         if current_worker['id'] in attempted_workers:
-            # Already tried this worker, skip
-            retry_count += 1
-            continue
+            # Already tried this worker, get a new one
+            active_workers = get_active_workers()
+            available_workers = [
+                w for w in active_workers
+                if w['id'] not in attempted_workers
+            ]
+            
+            if not available_workers:
+                logger.error(f"No more workers available for task {task_index}")
+                return {
+                    'worker': 'none',
+                    'worker_id': None,
+                    'status': 'error',
+                    'error': 'No available workers remaining',
+                    'task_index': task_index
+                }
+            
+            current_worker = available_workers[0]
         
         attempted_workers.add(current_worker['id'])
-        logger.info(f"Attempting task {task_index} on worker {current_worker['id']}: {current_worker['vm_url']}")
+        logger.info(f"Attempt {attempt + 1}/{max_retries}: Task {task_index} on worker {current_worker['id']}: {current_worker['vm_url']}")
         
         # Send task to worker
         result = await send_task_to_worker(
@@ -122,29 +136,7 @@ async def send_task_with_retry(session, task_data, task_index, initial_worker, a
             logger.warning(f"Worker {current_worker['id']} failed: {result.get('error')}")
             mark_worker_offline(current_worker['id'])
             
-            # Get next available active worker
-            active_workers = get_active_workers()
-            
-            # Filter out already attempted workers
-            available_workers = [
-                w for w in active_workers
-                if w['id'] not in attempted_workers
-            ]
-            
-            if not available_workers:
-                logger.error(f"No more workers available for task {task_index}")
-                return {
-                    'worker': 'none',
-                    'worker_id': None,
-                    'status': 'error',
-                    'error': 'No available workers remaining',
-                    'task_index': task_index
-                }
-            
-            # Select next worker
-            current_worker = available_workers[0]
-            retry_count += 1
-            logger.info(f"Retrying task {task_index} on worker {current_worker['id']}")
+            # Continue to next iteration to try another worker
     
     return {
         'worker': 'failed',
