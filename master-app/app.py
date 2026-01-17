@@ -11,6 +11,7 @@ import asyncio
 import aiohttp
 import streamlit as st
 from datetime import datetime
+from typing import Optional
 import google.generativeai as genai
 from supabase import create_client, Client
 
@@ -20,6 +21,9 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
 # Initialize clients
+model: Optional[genai.GenerativeModel] = None
+supabase: Optional[Client] = None
+
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-1.5-pro')
@@ -30,6 +34,9 @@ if SUPABASE_URL and SUPABASE_SERVICE_KEY:
 
 def get_active_workers():
     """Fetch all active worker nodes from Supabase"""
+    if not supabase:
+        st.error("Supabase client not initialized. Please configure SUPABASE_URL and SUPABASE_SERVICE_KEY.")
+        return []
     try:
         response = supabase.table('worker_nodes').select('*').eq('status', 'active').execute()
         return response.data
@@ -50,6 +57,9 @@ async def send_task_to_worker(session, worker_url, task_data):
 
 async def distribute_tasks(tasks, workers):
     """Distribute tasks to workers asynchronously"""
+    if not workers:
+        return []
+    
     async with aiohttp.ClientSession() as session:
         task_promises = []
         for i, task in enumerate(tasks):
@@ -63,6 +73,10 @@ async def distribute_tasks(tasks, workers):
 
 def split_task_with_gemini(user_command, num_workers):
     """Use Gemini API to intelligently split a task into subtasks"""
+    if not model:
+        st.error("Gemini API not initialized. Please configure GEMINI_API_KEY.")
+        return []
+    
     prompt = f"""
 You are a task distribution expert. Given the following user command and {num_workers} available workers,
 split this into {num_workers} parallel subtasks that can be executed independently.
@@ -99,6 +113,9 @@ Format your response as a simple numbered list.
 
 def update_worker_task_count(worker):
     """Increment the total_tasks counter for a worker"""
+    if not supabase:
+        st.error("Supabase client not initialized.")
+        return
     try:
         supabase.table('worker_nodes').update({
             'total_tasks': worker['total_tasks'] + 1,
