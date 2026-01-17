@@ -12,6 +12,7 @@ import subprocess
 import os
 import logging
 import json
+import shlex
 from datetime import datetime
 
 # Configure logging
@@ -72,8 +73,8 @@ async def execute_task(task_request: TaskRequest):
         # For security, we'll execute Python code instead of arbitrary shell commands
         # In a production environment, you'd want more sophisticated sandboxing
         
-        # Prepare the task execution - use json.dumps for safe escaping
-        safe_task = json.dumps(task_request.task)
+        # Prepare the task execution - use shlex.quote for safe shell escaping
+        safe_task = shlex.quote(task_request.task)
         result = subprocess.run(
             ["python3", "-c", f"print({safe_task})"],
             capture_output=True,

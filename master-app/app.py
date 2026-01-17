@@ -11,6 +11,7 @@ import asyncio
 import aiohttp
 import streamlit as st
 from datetime import datetime
+from typing import Optional
 import google.generativeai as genai
 from supabase import create_client, Client
 
@@ -20,8 +21,8 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
 # Initialize clients
-model = None
-supabase = None
+model: Optional[genai.GenerativeModel] = None
+supabase: Optional[Client] = None
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
