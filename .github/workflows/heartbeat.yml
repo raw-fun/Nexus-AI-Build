@@ -1,0 +1,101 @@
+# ============================================================
+# NEXUS-AI DISTRIBUTED GRID (NADG) - 24/7 HEARTBEAT
+# ============================================================
+# Purpose: Keep worker nodes alive by pinging them regularly
+# Schedule: Every 15 minutes
+# ============================================================
+
+name: NADG Heartbeat
+
+on:
+  schedule:
+    # Runs every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  ping-workers:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install supabase requests
+      
+      - name: Wake up Workers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python - <<'EOF'
+          import os
+          import requests
+          from supabase import create_client
+          from datetime import datetime
+          
+          # Initialize Supabase client
+          supabase_url = os.environ.get('SUPABASE_URL')
+          supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
+          
+          if not supabase_url or not supabase_key:
+              print("⚠️  Supabase credentials not configured")
+              exit(0)
+          
+          supabase = create_client(supabase_url, supabase_key)
+          
+          # Fetch all worker nodes
+          try:
+              response = supabase.table('worker_nodes').select('*').execute()
+              workers = response.data
+              
+              print(f"🔍 Found {len(workers)} worker nodes")
+              
+              # Ping each worker
+              for worker in workers:
+                  worker_url = worker['vm_url']
+                  worker_id = worker['id']
+                  
+                  try:
+                      print(f"📡 Pinging worker {worker_id}: {worker_url}")
+                      resp = requests.get(f"{worker_url}/health", timeout=10)
+                      
+                      if resp.status_code == 200:
+                          # Update last_ping timestamp and set status to active
+                          supabase.table('worker_nodes').update({
+                              'last_ping': datetime.now().isoformat(),
+                              'status': 'active'
+                          }).eq('id', worker_id).execute()
+                          print(f"✅ Worker {worker_id} is alive")
+                      else:
+                          print(f"⚠️  Worker {worker_id} returned status {resp.status_code}")
+                          supabase.table('worker_nodes').update({
+                              'status': 'offline'
+                          }).eq('id', worker_id).execute()
+                  
+                  except requests.exceptions.RequestException as e:
+                      print(f"❌ Worker {worker_id} is unreachable: {e}")
+                      # Mark as offline
+                      supabase.table('worker_nodes').update({
+                          'status': 'offline'
+                      }).eq('id', worker_id).execute()
+              
+              print(f"✅ Heartbeat completed for {len(workers)} workers")
+          
+          except Exception as e:
+              print(f"❌ Error during heartbeat: {e}")
+              exit(1)
+          EOF
+      
+      - name: Summary
+        run: |
+          echo "✅ Heartbeat workflow completed at $(date)"
