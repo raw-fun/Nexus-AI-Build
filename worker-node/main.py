@@ -63,7 +63,8 @@ async def health_check():
 async def execute_task(task_request: TaskRequest):
     """
     Execute a task received from the master orchestrator.
-    The task is executed as a shell command in a controlled environment.
+    The task is executed as Python code in a subprocess.
+    Note: In a production environment, implement proper sandboxing and input validation.
     """
     logger.info(f"Received task {task_request.task_id}: {task_request.task}")
     
