@@ -11,8 +11,6 @@ from pydantic import BaseModel
 import subprocess
 import os
 import logging
-import json
-import shlex
 from datetime import datetime
 
 # Configure logging
@@ -73,10 +71,9 @@ async def execute_task(task_request: TaskRequest):
         # For security, we'll execute Python code instead of arbitrary shell commands
         # In a production environment, you'd want more sophisticated sandboxing
         
-        # Prepare the task execution - use shlex.quote for safe shell escaping
-        safe_task = shlex.quote(task_request.task)
+        # Execute the task directly without string interpolation to prevent injection
         result = subprocess.run(
-            ["python3", "-c", f"print({safe_task})"],
+            ["python3", "-c", task_request.task],
             capture_output=True,
             text=True,
             timeout=task_request.timeout
