@@ -96,7 +96,8 @@ async def health_check():
 async def execute_task(task_request: TaskRequest, authenticated: bool = Depends(verify_auth_token)):
     """
     Execute a task received from the master orchestrator.
-    The task is executed as a shell command in a controlled environment.
+    The task is executed as Python code in a subprocess.
+    Note: In a production environment, implement proper sandboxing and input validation.
     """
     logger.info(f"Received task {task_request.task_id}: {task_request.task}")
     
@@ -106,7 +107,7 @@ async def execute_task(task_request: TaskRequest, authenticated: bool = Depends(
         
         # Prepare the task execution
         result = subprocess.run(
-            ["python3", "-c", f"print('{task_request.task}')"],
+            ["python3", "-c", task_request.task],
             capture_output=True,
             text=True,
             timeout=task_request.timeout
