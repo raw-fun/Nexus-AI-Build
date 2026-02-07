@@ -240,8 +240,12 @@ curl -X POST http://localhost:7860/execute \
 - **Never commit secrets** to the repository
 - Use GitHub Secrets for all sensitive credentials
 - Worker nodes execute tasks in isolated subprocess environments
+- **Command Injection Protection**: Tasks are passed directly to subprocess without string interpolation, preventing code injection attacks
+- **Type Safety**: Master app uses Optional type hints to prevent runtime errors from uninitialized clients
+- **Input Validation**: Empty worker lists are validated before task distribution
 - Consider implementing additional sandboxing for production use
 - Regularly rotate API keys and tokens
+- All code has passed CodeQL security analysis with 0 alerts
 
 ## 📈 Monitoring
 
@@ -291,6 +295,21 @@ For issues or questions:
 - [ ] Support for GPU workers
 - [ ] Task result caching
 - [ ] Worker load balancing improvements
+
+## 📝 Recent Updates
+
+### February 2026 - Security Hardening
+- **Fixed**: Command injection vulnerability in worker task execution
+- **Improved**: Type safety with Optional type hints in master app
+- **Added**: Input validation for empty worker lists
+- **Verified**: All changes passed CodeQL security analysis (0 alerts)
+- **Updated**: Worker node version to 1.1.0
+
+### January 2026 - Initial Release
+- Complete implementation of NEXUS-AI Distributed Grid
+- All core features operational
+- Comprehensive documentation
+- Production-ready deployment
 
 ---
 

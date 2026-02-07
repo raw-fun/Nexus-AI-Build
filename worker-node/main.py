@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="NADG Worker Node",
     description="Worker node for NEXUS-AI Distributed Grid",
-    version="1.0.0"
+    version="1.1.0"
 )
 
 

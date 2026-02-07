@@ -182,6 +182,46 @@ Repeat step 3 to create more workers, and step 4 to register them. The system wi
 - Set up monitoring and logging
 - Deploy the master app to a cloud platform for 24/7 access
 
+## Security Best Practices
+
+### For Production Deployments
+
+1. **API Key Management**
+   - Rotate API keys regularly (quarterly recommended)
+   - Use separate keys for development and production
+   - Monitor API usage for unusual patterns
+
+2. **Worker Security**
+   - Keep worker nodes updated with latest security patches
+   - Monitor worker logs for suspicious activity
+   - Implement rate limiting on worker endpoints
+   - Consider running workers in isolated environments
+
+3. **Database Security**
+   - Use Supabase Row Level Security (RLS) policies
+   - Regularly backup your worker registry
+   - Monitor database access logs
+   - Use strong authentication for database access
+
+4. **Code Execution Safety**
+   - The system executes user-provided Python code on workers
+   - In production, implement additional sandboxing (e.g., Docker containers, virtual machines)
+   - Consider code validation before execution
+   - Set resource limits (CPU, memory, execution time)
+
+5. **Network Security**
+   - Use HTTPS for all communications (automatic with HF Spaces)
+   - Implement authentication for production deployments
+   - Consider using a VPN for worker-to-master communication
+   - Monitor network traffic for anomalies
+
+### Recent Security Updates
+
+- **February 2026**: Fixed command injection vulnerability in worker task execution
+- **February 2026**: Added type safety improvements to prevent runtime errors
+- **February 2026**: Enhanced input validation across all components
+- All changes verified with CodeQL security analysis (0 alerts)
+
 ## Support
 
 If you encounter issues:

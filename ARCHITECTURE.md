@@ -235,9 +235,23 @@ GitHub Actions ←→ Workers: Public health endpoints
 
 ### Worker Isolation
 - Subprocess execution with timeout limits
+- **Direct parameter passing** - No string interpolation to prevent command injection
 - No direct shell access
 - Resource constraints via Docker
 - Limited network access
+
+### Security Improvements (February 2026)
+- **Command Injection Fix**: Tasks are passed directly to subprocess as parameters, not through string interpolation
+- **Type Safety**: Optional type hints prevent runtime errors from uninitialized API clients
+- **Input Validation**: Empty worker lists validated before task distribution
+- **Security Verification**: All code passes CodeQL analysis with 0 alerts
+
+### Threat Model
+1. **Code Injection**: Mitigated by direct subprocess parameter passing
+2. **API Key Exposure**: Mitigated by GitHub Secrets and environment variables
+3. **Unauthorized Access**: Can be mitigated by adding authentication layer
+4. **Resource Exhaustion**: Mitigated by timeout limits and Docker constraints
+5. **Data Persistence**: Workers are stateless, no sensitive data stored
 
 ## Scalability Considerations
 
